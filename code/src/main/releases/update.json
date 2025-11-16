@@ -1,0 +1,28 @@
+{
+  "android": {
+    "latestVersion": "1.1.0",
+    "minRequiredVersion": "1.0.0",
+    "forceUpdate": false,
+    "downloadUrl": "/releases/android/app-1.1.0.apk",
+    "changelog": "<ul><li>Corrections de bugs</li><li>Améliorations performance upload</li></ul>",
+    "publishedAt": "2025-11-10T12:00:00Z",
+    "notes": "APK optimisée pour Android 10+"
+  },
+  "desktop": {
+    "latestVersion": "1.1.0",
+    "minRequiredVersion": "1.0.0",
+    "forceUpdate": true,
+    "downloadUrl": "/releases/desktop/app-1.1.0.apk",
+    "changelog": "<ul><li>Nouvelle UI</li><li>Support fichiers volumineux</li></ul>",
+    "publishedAt": "2025-11-12T08:00:00Z",
+    "notes": "Installeur pour Windows/Mac"
+  },
+  "web": {
+    "latestVersion": "1.1.0",
+    "minRequiredVersion": "1.0.0",
+    "forceUpdate": false,
+    "downloadUrl": "/releases/web/release-1.1.0.zip",
+    "changelog": "<ul><li>Fix recherche</li></ul>",
+    "publishedAt": "2025-11-11T09:00:00Z"
+  }
+}

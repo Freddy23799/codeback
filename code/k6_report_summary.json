@@ -1,0 +1,44 @@
+{
+  "timestamp": "2025-10-01T00:52:27.392Z",
+  "metrics": {
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 57863,
+        "rate": 20.738531139073853
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 69506.4315,
+        "p(90)": 60045.0522,
+        "p(95)": 60602.02588,
+        "avg": 22118.518631472674,
+        "min": 0,
+        "med": 0
+      },
+      "thresholds": {
+        "p(95)<3000": {
+          "ok": false
+        }
+      }
+    },
+    "errors": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 1,
+        "passes": 52838,
+        "fails": 0
+      },
+      "thresholds": {
+        "rate<0.05": {
+          "ok": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+     
+        
+        # Stage 1: build
+FROM maven:3.9.5-eclipse-temurin-17 as build
+WORKDIR /app
+
+# Copy maven wrapper and pom for cache
+COPY mvnw pom.xml ./
+COPY .mvn .mvn
+RUN chmod +x mvnw || true
+RUN ./mvnw -B dependency:go-offline
+
+# Copy source and build
+COPY src ./src
+RUN ./mvnw -B clean package -DskipTests
+
+# Stage 2: runtime
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+
+# Create non-root user (optional but recommended)
+RUN addgroup -S app && adduser -S app -G app
+USER app
+
+# Copy jar
+COPY --from=build /app/target/*.jar app.jar
+
+EXPOSE 8080
+ENV JAVA_OPTS=""
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+        
+        
+        

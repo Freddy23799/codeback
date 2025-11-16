@@ -1,0 +1,41 @@
+# #  curl -v -X GET "http://localhost:9001/api/notifications/unread/FRANCKY" \
+# #  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJGUkFOQ0tZIiwicm9sZXMiOlsiUk9MRV9FVFVESUFOVCJdLCJpYXQiOjE3NTg4NTMzMDEsImV4cCI6MTc1ODg4OTMwMX0.ey6QbT5gCtvKYm9dvgG31ZZsSryq8jlbJK9tjdGMvN4" \
+# #  -H "Accept: application/json"
+
+
+# # curl POST  "http://localhost:9001/auth/login"
+# # eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbjIiLCJyb2xlcyI6WyJST0xFX0FETUlOIl0sImlhdCI6MTc1ODc1OTU3NCwiZXhwIjoxNzU4Nzk1NTc0fQ.KR8jFZ5iYRdc5jS2OENNgZVx4432HT2syiG6rtIWyrc
+# # curl -X POST "http://localhost:9001/api/users/register-fcm-token?username=FRANCKY&fcmToken=abcdef123456" \
+# # -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJGUkFOQ0tZIiwicm9sZXMiOlsiUk9MRV9FVFVESUFOVCJdLCJpYXQiOjE3NTg3Nzc4NjcsImV4cCI6MTc1ODgxMzg2N30.x8cdMKleXleKpqpVVBKkIwdiK5S3wBFdu3dunH7Eqos" \
+# #   -H "Content-Type: application/json"
+# curl "http://localhost:9001/api/etudiant/timetable/1"\
+#   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJSRVNQT05TQUJMRSIsInJvbGVzIjpbIlJPTEVfUkVTUE9OU0FCTEUiXSwiaWF0IjoxNzU5ODY5MTQyLCJleHAiOjE3NTk5MDUxNDJ9.7DhJKdlDZsMQJjk3dpwcnZEKg1EL_HNkvx2hgAO7nlI" \
+#    -H "Accept: application/json" 
+# # curl -s -G "http://localhost:9001/api/admins/rooms" \
+# #   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyZXNwb25zYWJsZSIsInJvbGVzIjpbIlJPTEVfUkVTUE9OU0FCTEUiXSwiaWF0IjoxNzU5MDEyMjE0LCJleHAiOjE3NTkwNDgyMTR9.qNnz2iN3tVGV4rbv1I5lp3sqZIK78SjlAoZCaMmHDwE" \
+# #   -H "Accept: application/json" \
+# #   --data-urlencode "name=C611" \
+# # | jq
+
+
+# # curl -v -i -G "http://localhost:9001/api/admins/professors" \
+# #   --data-urlencode "q=fredy" \
+# #   -H "Accept: application/json" \
+# #   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyZXNwb25zYWJsZSIsInJvbGVzIjpbIlJPTEVfUkVTUE9OU0FCTEUiXSwiaWF0IjoxNzU5MDEyMjE0LCJleHAiOjE3NTkwNDgyMTR9.qNnz2iN3tVGV4rbv1I5lp3sqZIK78SjlAoZCaMmHDwE"
+
+
+
+
+
+
+
+# mvn install:install-file \
+#     -Dfile=C:\Users\fredy\Desktop\finition\code\okio-3.16.0.jar \
+#     -DgroupId=com.squareup.okio \
+#     -DartifactId=okio \
+#     -Dversion=3.16.0 \
+#     -Dpackaging=jar
+
+
+# cd C:\Users\fredy\Desktop\finition\code
+# keytool -genkeypair -v -keystore cle de signature deploiment palm store.jks -alias com.freddy.app -keyalg RSA -keysize 2048 -validity 10000 -storepass freddy237 -keypass freddy237 -dname "CN=sidze, OU=mobile development, O=emergency, L=cameroun-bafoussam, ST=cameroun, C=CM"

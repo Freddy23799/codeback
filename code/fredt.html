@@ -1,0 +1,327 @@
+<!-- version: "3.8"
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - ./minio/data:/data
+    ports:
+      - "9002:9000"   # ✅ on mappe l’API interne (9000) vers 9002 sur ta machine
+      - "9003:9001"   # console d’administration
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9001/minio/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio-setup:
+    image: minio/mc
+    container_name: minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set localminio http://minio:9000 minioadmin minioadmin &&
+        mc mb --ignore-existing localminio/exams &&
+        echo '✅ Bucket ensured: exams';
+        exit 0
+      "
+    restart: "no"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# version: '3.9'
+
+# services:
+
+#   traefik:
+#     image: traefik:v2.10
+#     container_name: traefik
+#     restart: always
+#     command:
+#       - "--providers.docker=true"
+#       - "--providers.docker.exposedbydefault=false"
+#       - "--entrypoints.web.address=:80"
+#       - "--entrypoints.websecure.address=:443"
+#       - "--certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}"
+#       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+#       - "--certificatesresolvers.le.acme.tlschallenge=true"
+#     ports:
+#       - "80:80"
+#       - "443:443"
+#     volumes:
+#       - /var/run/docker.sock:/var/run/docker.sock:ro
+#       - traefik_data:/letsencrypt
+#     networks:
+#       - web
+
+#   postgres:
+#     image: postgres:15
+#     container_name: postgres_db
+#     restart: always
+#     environment:
+#       POSTGRES_DB: ${POSTGRES_DB}
+#       POSTGRES_USER: ${POSTGRES_USER}
+#       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     networks:
+#       - backend
+
+#   pgadmin:
+#     image: dpage/pgadmin4
+#     container_name: pgadmin
+#     restart: always
+#     environment:
+#       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+#       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+#     depends_on:
+#       - postgres
+#     volumes:
+#       - pgadmin_data:/var/lib/pgadmin
+#     networks:
+#       - backend
+#       - web
+#     labels:
+#       - "traefik.enable=true"
+#       - "traefik.http.routers.pgadmin.rule=Host(`pgadmin.${APP_DOMAIN}`)"
+#       - "traefik.http.routers.pgadmin.entrypoints=websecure"
+#       - "traefik.http.routers.pgadmin.tls.certresolver=le"
+
+#   redis:
+#     image: redis:7-alpine
+#     container_name: redis
+#     restart: always
+#     command: ["redis-server", "--appendonly", "yes"]
+#     volumes:
+#       - redis_data:/data
+#     networks:
+#       - backend
+
+#   minio:
+#     image: minio/minio:latest
+#     container_name: minio_server
+#     restart: unless-stopped
+#     environment:
+#       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+#       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+#     command: server /data --console-address ":9001"
+#     ports:
+#       - "9000:9000"
+#       - "9001:9001"
+#     volumes:
+#       - minio_data:/data
+#     networks:
+#       - backend
+#       - web
+#     labels:
+#       - "traefik.enable=true"
+#       - "traefik.http.routers.minio-console.rule=Host(`console-minio.${APP_DOMAIN}`)"
+#       - "traefik.http.routers.minio-console.entrypoints=websecure"
+#       - "traefik.http.routers.minio-console.tls.certresolver=le"
+#       - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+
+#   minio_cli:
+#     image: minio/mc
+#     container_name: mc
+#     entrypoint: /bin/sh
+#     stdin_open: true
+#     tty: true
+#     depends_on:
+#       - minio
+#     networks:
+#       - backend
+
+#   springapp:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: springapp
+#     restart: always
+#     environment:
+#       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE}
+
+#       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+#       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+#       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
+#       SPRING_REDIS_HOST: redis
+#       SPRING_REDIS_PORT: 6379
+
+#       MINIO_ENDPOINT: https://console-minio.${APP_DOMAIN}
+#       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+#       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+#     depends_on:
+#       - postgres
+#       - redis
+#       - minio
+#     networks:
+#       - backend
+#       - web
+#     labels:
+#       - "traefik.enable=true"
+#       - "traefik.http.routers.spring.rule=Host(`api.${APP_DOMAIN}`)"
+#       - "traefik.http.routers.spring.entrypoints=websecure"
+#       - "traefik.http.routers.spring.tls.certresolver=le"
+#       - "traefik.http.services.spring.loadbalancer.server.port=8080"
+
+# volumes:
+#   traefik_data:
+#   postgres_data:
+#   pgadmin_data:
+#   redis_data:
+#   minio_data:
+
+# networks:
+#   web:
+#   backend:
+
+
+
+
+
+
+
+
+
+spring.application.name=code
+
+# ---------------- Spring Boot Server ----------------
+server.port=9001
+server.address=0.0.0.0
+
+# ---------------- GZIP Compression ----------------
+server.compression.enabled=true
+server.compression.min-response-size=1024
+server.compression.mime-types=application/json,application/xml,text/html,text/xml,text/plain,text/css,text/javascript,application/javascript
+server.compression.excluded-user-agents=badbot
+
+# ---------------- Datasource / HikariCP ----------------
+spring.datasource.url=jdbc:postgresql://localhost:5432/codes
+spring.datasource.username=postgres
+spring.datasource.password=99639881
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.datasource.hikari.pool-name=HikariCP
+spring.datasource.hikari.maximum-pool-size=200
+spring.datasource.hikari.minimum-idle=10
+spring.datasource.hikari.idle-timeout=300000
+spring.datasource.hikari.max-lifetime=1800000
+spring.datasource.hikari.connection-timeout=30000
+# logging.level.com.zaxxer.hikari=DEBUG
+
+# ---------------- JPA / Hibernate ----------------
+spring.jpa.hibernate.ddl-auto=update
+
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+spring.jpa.properties.hibernate.format_sql=true
+
+# Logs SQL détaillés
+logging.level.org.hibernate.SQL=DEBUG
+logging.level.org.hibernate.type.descriptor.sql.BasicBinder=TRACE
+seeder.enabled=true
+seeder.runAsync=true
+
+# Optimisation batch Hibernate
+spring.jpa.properties.hibernate.default_batch_fetch_size=50
+spring.jpa.properties.hibernate.jdbc.batch_size=1000
+spring.jpa.properties.hibernate.order_inserts=true
+spring.jpa.properties.hibernate.order_updates=true
+spring.jpa.properties.hibernate.generate_statistics=false
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+spring.cache.type=redis
+logging.level.org.springframework.security=TRACE
+# ---------------- Security ----------------
+# Exemple : le fichier est dans le dossier "releases" à la racine du projet
+# --- Mode de stockage ---
+app.storage.mode=minio      
+app.storage.path=backend/uploads/exams
+
+# --- Upload ---
+app.upload.max-bytes=524288000
+spring.servlet.multipart.max-file-size=500MB
+spring.servlet.multipart.max-request-size=500MB
+
+# --- MinIO (préconfiguré pour futur usage en ligne) ---
+minio.url=http://localhost:9002
+minio.access-key=minioadmin
+minio.secret-key=minioadmin
+minio.bucket=exams
+
+
+
+
+
+
+
+
+
+# Firebase
+firebase.key.path=${FIREBASE_KEY_PATH:}      # chemin absolu ex: /etc/myapp/firebase/serviceAccountKey.json
+# firebase.key.json=${FIREBASE_KEY_JSON:}    # (optionnel) contenu JSON complet
+
+# RSA keys
+rsa.private.path=${PRIVATE_KEY_PATH:}        # ex: /etc/myapp/keys/private_key.pem
+# rsa.private.pem=${PRIVATE_KEY_PEM:}       # (optionnel) contenu PEM direct (env var)
+rsa.public.path=${PUBLIC_KEY_PATH:classpath:public_key.pem}
+
+# JWT
+jwt.secret=${JWT_SECRET:}                    # obligatoire en prod
+jwt.expiration=${JWT_EXPIRATION_MS:36000000}
+
+
+
+
+# GUIDE DE DISTRIBUTION DES CLE ET SECRET CODE SENSIBLE POUR PRODUCTION
+# export FIREBASE_KEY_PATH="/etc/myapp/firebase/serviceAccountKey.json"
+# export PRIVATE_KEY_PATH="/etc/myapp/keys/private_key.pem"
+# export PUBLIC_KEY_PATH="/etc/myapp/keys/public_key.pem"   # si tu veux utiliser fichier externe
+# export JWT_SECRET="$(openssl rand -base64 64)"
+
+ -->
+
+
+ echo "# codeback" >> README.md
+git init
+git add .
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/Freddy23799/codeback.git
+git push -u origin main

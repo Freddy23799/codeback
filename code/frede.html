@@ -1,0 +1,566 @@
+<!-- package codeqr.code.security.service;
+
+import codeqr.code.model.User;
+import codeqr.code.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepository.findByUsername(username)
+                        .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé : " + username));
+        return new CustomUserDetails(user);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+package codeqr.code.security.service;
+
+import codeqr.code.model.User;
+import lombok.Getter;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import java.util.Collection;
+import java.util.List;
+
+@Getter
+public class CustomUserDetails implements UserDetails {
+
+    private final User user;
+
+    public CustomUserDetails(User user) {
+        this.user = user;
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        // ROLE_ obligatoire pour Spring Security
+        return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+    }
+
+    @Override
+    public String getPassword() {
+        return user.getPassword();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.getUsername();
+    }
+
+    @Override
+    public boolean isAccountNonExpired() { return true; }
+
+    @Override
+    public boolean isAccountNonLocked() { return true; }
+
+    @Override
+    public boolean isCredentialsNonExpired() { return true; }
+
+    @Override
+    public boolean isEnabled() { return true; }
+}
+
+
+
+
+
+
+
+package codeqr.code.security.jwt;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+
+import codeqr.code.security.service.CustomUserDetailsService;
+
+import io.jsonwebtoken.JwtException;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    @Autowired
+    private JwtService jwtService;
+
+    @Autowired
+    private CustomUserDetailsService userDetailsService;
+
+
+
+@Override
+protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+    return request.getMethod().equalsIgnoreCase("OPTIONS");
+}
+
+
+
+
+    private static final AntPathMatcher MATCHER = new AntPathMatcher();
+    // 👉 ajoute ici tous les endpoints QR (et autres) à ignorer par CE filtre
+    private static final List<String> SKIP_URLS = List.of(
+       
+        "/api/sessions/**"
+      
+    );
+
+
+
+
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain chain) throws ServletException, IOException {
+
+        final String authHeader = request.getHeader("Authorization");
+        String token = null;
+        String username = null;
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+            try {
+                username = jwtService.extractUsername(token);
+            } catch (JwtException ex) {
+                // JWT invalide -> renvoyer 401
+                logger.warn("JWT invalide: " + ex.getMessage());
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("Invalid JWT token");
+                return;
+            } catch (Exception e) {
+                logger.error("Erreur extraction JWT", e);
+            }
+        }
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            // Option 1 : on peut charger UserDetails depuis BDD
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+            if (jwtService.isTokenValid(token, userDetails)) {
+                // Récupérer rôles depuis le token (fiable) ou depuis userDetails
+                List<String> roles = jwtService.extractRoles(token);
+                Collection<GrantedAuthority> authorities = roles.stream()
+                        .map(r -> r.startsWith("ROLE_") ? new SimpleGrantedAuthority(r) : new SimpleGrantedAuthority("ROLE_" + r))
+                        .collect(Collectors.toList());
+
+                UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            } else {
+                logger.warn("Token non valide pour l'utilisateur: " + username);
+            }
+        }
+
+        chain.doFilter(request, response);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+package codeqr.code.security.jwt;
+
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import java.security.Key;
+import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class JwtService {
+
+    // -> REMPLACEZ par une vraie clé en prod (au moins 32 bytes base64). Ici exemple pour dev.
+    private static final String SECRET_KEY = "ReplaceThisWithASuperLongRandomSecretKey_ChangeInProd_32+chars";
+    private static final long EXPIRATION = 1000 * 60 * 60 * 10; // 10h
+
+    private Key getSignKey() {
+        return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
+    }
+
+    public String generateToken(org.springframework.security.core.userdetails.UserDetails userDetails) {
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(a -> {
+                    String r = a.getAuthority();
+                    return r.startsWith("ROLE_") ? r : "ROLE_" + r;
+                })
+                .collect(Collectors.toList());
+
+        return Jwts.builder()
+                .setSubject(userDetails.getUsername())
+                .claim("roles", roles)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION))
+                .signWith(getSignKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    // parseClaims throw JwtException si invalide
+    public Claims parseClaims(String token) throws JwtException {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSignKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    public String extractUsername(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> extractRoles(String token) {
+        Claims c = parseClaims(token);
+        return c.get("roles", List.class);
+    }
+
+    public boolean isTokenExpired(String token) {
+        Date exp = parseClaims(token).getExpiration();
+        return exp.before(new Date());
+    }
+
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+        try {
+            final String username = extractUsername(token);
+            return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        } catch (JwtException e) {
+            return false;
+        }
+    }
+}
+
+
+
+
+
+
+
+
+package codeqr.code.security.jwt;
+
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import java.security.Key;
+import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class JwtService {
+
+    // -> REMPLACEZ par une vraie clé en prod (au moins 32 bytes base64). Ici exemple pour dev.
+    private static final String SECRET_KEY = "ReplaceThisWithASuperLongRandomSecretKey_ChangeInProd_32+chars";
+    private static final long EXPIRATION = 1000 * 60 * 60 * 10; // 10h
+
+    private Key getSignKey() {
+        return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
+    }
+
+    public String generateToken(org.springframework.security.core.userdetails.UserDetails userDetails) {
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(a -> {
+                    String r = a.getAuthority();
+                    return r.startsWith("ROLE_") ? r : "ROLE_" + r;
+                })
+                .collect(Collectors.toList());
+
+        return Jwts.builder()
+                .setSubject(userDetails.getUsername())
+                .claim("roles", roles)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION))
+                .signWith(getSignKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    // parseClaims throw JwtException si invalide
+    public Claims parseClaims(String token) throws JwtException {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSignKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    public String extractUsername(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> extractRoles(String token) {
+        Claims c = parseClaims(token);
+        return c.get("roles", List.class);
+    }
+
+    public boolean isTokenExpired(String token) {
+        Date exp = parseClaims(token).getExpiration();
+        return exp.before(new Date());
+    }
+
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+        try {
+            final String username = extractUsername(token);
+            return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        } catch (JwtException e) {
+            return false;
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+package codeqr.code.controller;
+
+import codeqr.code.dto.LoginRequest;
+// import codeqr.code.dto.LoginResponse;
+import codeqr.code.model.*;
+import codeqr.code.repository.*;
+import codeqr.code.security.jwt.JwtService;
+import codeqr.code.security.service.CustomUserDetails;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
+public class AuthController {
+
+    private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
+
+    private final StudentRepository studentRepository;
+    private final TeacherRepository teacherRepository;
+    private final AdminRepository adminRepository;
+   private final SurveillantRepository surveillantRepository;
+
+   @PostMapping("/login")
+    public LoginResponse login(@RequestBody LoginRequest request) {
+        try {
+            // Authentification
+            Authentication auth = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+            );
+
+            CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+            User user = userDetails.getUser();
+
+            // Génération du JWT
+            String token = jwtService.generateToken(userDetails);
+
+            // Préparer les infos selon le rôle
+            Long id = null;
+            String fullName = null;
+
+            switch (user.getRole()) {
+                case ETUDIANT -> {
+                    Student student = studentRepository.findByUserId(user.getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profil étudiant introuvable"));
+                    id = student.getId();
+                    fullName = student.getFullName();
+                }
+                case PROFESSEUR -> {
+                    Teacher teacher = teacherRepository.findByUserId(user.getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profil enseignant introuvable"));
+                    id = teacher.getId();
+                    fullName = teacher.getFullName();
+                }
+                case ADMIN -> {
+                    Admin admin = adminRepository.findByUserId(user.getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profil admin introuvable"));
+                    id = admin.getId();
+                    fullName = admin.getFullName();
+                }
+                case SURVEILLANT -> {
+                    Surveillant surveillant = surveillantRepository.findByUserId(user.getId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profil surveillant introuvable"));
+                    id = surveillant.getId();
+                    fullName = surveillant.getFullName();
+                }
+            }
+
+            // ✅ Vérification du champ privacyPolicyAcceptedAt
+            boolean accepted = user.getPrivacyPolicyAcceptedAt() != null;
+
+            // Retour de la réponse
+            return new LoginResponse(token, id, fullName, user.getRole().name(), user.getUsername(), accepted);
+
+        } catch (BadCredentialsException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Identifiants invalides");
+        }
+    }
+
+    // ----- DTO LoginResponse -----
+    public static class LoginResponse {
+        private String token;
+        private Long id;
+        private String fullName;
+        private String role;
+        private String username;
+        private boolean accepted;
+
+        public LoginResponse(String token, Long id, String fullName, String role, String username, boolean accepted) {
+            this.token = token;
+            this.id = id;
+            this.fullName = fullName;
+            this.role = role;
+            this.username = username;
+            this.accepted = accepted;
+        }
+
+        // Getters & Setters
+        public String getToken() { return token; }
+        public void setToken(String token) { this.token = token; }
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getFullName() { return fullName; }
+        public void setFullName(String fullName) { this.fullName = fullName; }
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public boolean isAccepted() { return accepted; }
+        public void setAccepted(boolean accepted) { this.accepted = accepted; }
+    } 
+    // Optionnel : endpoint pour vérifier le token
+    @GetMapping("/me")
+    public LoginResponse me(Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+
+        Long id = null;
+        String fullName = null;
+
+        switch (user.getRole()) {
+            case ETUDIANT -> {
+                id = studentRepository.findByUserId(user.getId()).map(Student::getId).orElse(null);
+                fullName = studentRepository.findByUserId(user.getId()).map(Student::getFullName).orElse(null);
+            }
+            case PROFESSEUR -> {
+                id = teacherRepository.findByUserId(user.getId()).map(Teacher::getId).orElse(null);
+                fullName = teacherRepository.findByUserId(user.getId()).map(Teacher::getFullName).orElse(null);
+            }
+            case ADMIN -> {
+                id = adminRepository.findByUserId(user.getId()).map(Admin::getId).orElse(null);
+                fullName = adminRepository.findByUserId(user.getId()).map(Admin::getFullName).orElse(null);
+            }
+        }
+ boolean accepted = user.getPrivacyPolicyAcceptedAt() != null;
+        return new LoginResponse(null, id, fullName, user.getRole().name(), user.getUsername(), accepted);
+    }
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+package codeqr.code.config;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class CorsConfig {
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/**")
+                        .allowedOrigins("http://localhost:9000") // ton frontend
+                        .allowedMethods("GET","POST","PUT","DELETE","OPTIONS")
+                        .allowedHeaders("*")
+                        .allowCredentials(true);
+                           
+            }
+
+            private void maxAge(int i) {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+        };
+    }
+} -->

@@ -1,0 +1,55 @@
+{
+  "timestamp": "2025-09-30T00:38:09.508Z",
+  "metrics": {
+    "checks": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "fails": 54951,
+        "rate": 0,
+        "passes": 0
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 9.4035,
+        "max": 789.393,
+        "p(90)": 53.0609,
+        "p(95)": 128.896,
+        "avg": 27.3930404687813,
+        "min": 0.9973
+      },
+      "thresholds": {
+        "p(95)<3000": {
+          "ok": true
+        }
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 54951,
+        "rate": 299.30768809802004
+      }
+    },
+    "errors": {
+      "contains": "default",
+      "values": {
+        "passes": 54951,
+        "fails": 0,
+        "rate": 1
+      },
+      "thresholds": {
+        "rate<0.05": {
+          "ok": false
+        }
+      },
+      "type": "rate"
+    }
+  },
+  "failedEndpoints": [],
+  "failedDetailsSample": []
+}
